@@ -10,14 +10,15 @@
 // ----------------------
 class ContadorControl {
 public:
-    ContadorControl(GtkWidget* lbl)
+    ContadorControl(GtkWidget* lbl, GtkWidget* status)
         : contador(0), incremento(1), frequencia(1000),
-        running(false), label(lbl) {
+        running(false), label(lbl), labelStatus(status) {
     }
 
     void start() {
         if (running) return;
         running = true;
+        atualizarStatus();
         worker = std::thread(&ContadorControl::loop, this);
     }
 
@@ -25,6 +26,7 @@ public:
         running = false;
         if (worker.joinable())
             worker.join();
+        atualizarStatus();
     }
 
     void reset() {
@@ -32,20 +34,24 @@ public:
         atualizarUI();
     }
 
-    void setIncremento(int inc) { incremento = inc; }
-    void setFrequencia(int freq) { frequencia = freq; }
+    void setIncremento(int inc) { incremento = inc; atualizarStatus(); }
+    void setFrequencia(int freq) { frequencia = freq; atualizarStatus(); }
 
     int getContador() const { return contador; }
+    int getIncremento() const { return incremento; }
+    int getFrequencia() const { return frequencia; }
+    bool isRunning() const { return running; }
 
     ~ContadorControl() { stop(); }
 
-private:
+public:
     std::atomic<int> contador;
     std::atomic<int> incremento;
     std::atomic<int> frequencia;
     std::atomic<bool> running;
     std::thread worker;
     GtkWidget* label;
+    GtkWidget* labelStatus;
 
     void loop() {
         while (running) {
@@ -63,6 +69,16 @@ private:
             return G_SOURCE_REMOVE;
             }, this);
     }
+
+    void atualizarStatus() {
+        g_idle_add([](gpointer data) -> gboolean {
+            auto* self = static_cast<ContadorControl*>(data);
+            std::string texto = "Incremento: " + std::to_string(self->getIncremento()) +
+                " | Frequência: " + std::to_string(self->getFrequencia()) + " ms";
+            gtk_label_set_text(GTK_LABEL(self->labelStatus), texto.c_str());
+            return G_SOURCE_REMOVE;
+            }, this);
+    }
 };
 
 // ----------------------
@@ -71,6 +87,7 @@ private:
 GtkWidget* entryIncremento;
 GtkWidget* entryFrequencia;
 GtkWidget* labelContador;
+GtkWidget* labelStatus;
 ContadorControl* globalControl = nullptr;
 
 // ----------------------
@@ -79,7 +96,6 @@ ContadorControl* globalControl = nullptr;
 void on_iniciar_parar(GtkWidget* widget, gpointer data) {
     static bool ativo = false;
 
-    // antes de iniciar, lê os valores dos campos
     const char* inc_text = gtk_entry_get_text(GTK_ENTRY(entryIncremento));
     const char* freq_text = gtk_entry_get_text(GTK_ENTRY(entryFrequencia));
 
@@ -104,6 +120,7 @@ void on_iniciar_parar(GtkWidget* widget, gpointer data) {
 void on_reset(GtkWidget* widget, gpointer data) {
     globalControl->reset();
     gtk_label_set_text(GTK_LABEL(labelContador), "Contador: 0");
+    globalControl->atualizarStatus();
 }
 
 void destroy_cb(GtkWidget* widget, gpointer data) {
@@ -117,39 +134,38 @@ int main(int argc, char* argv[]) {
     gtk_init(&argc, &argv);
 
     GtkWidget* janela = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(janela), "Contador com Thread");
-    gtk_window_resize(GTK_WINDOW(janela), 500, 200);
+    gtk_window_set_title(GTK_WINDOW(janela), "Contador com Thread e Status");
+    gtk_window_resize(GTK_WINDOW(janela), 550, 200);
 
     GtkWidget* vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
 
-    // linha de inputs (incremento e frequência)
+    // Inputs
     GtkWidget* hboxInputs = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     entryIncremento = gtk_entry_new();
     gtk_entry_set_placeholder_text(GTK_ENTRY(entryIncremento), "Incremento (ex: 1)");
     entryFrequencia = gtk_entry_new();
     gtk_entry_set_placeholder_text(GTK_ENTRY(entryFrequencia), "Frequência (ms)");
-
     gtk_box_pack_start(GTK_BOX(hboxInputs), entryIncremento, TRUE, TRUE, 5);
     gtk_box_pack_start(GTK_BOX(hboxInputs), entryFrequencia, TRUE, TRUE, 5);
 
-    // linha de botões
+    // Botões
     GtkWidget* hboxButtons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     GtkWidget* botaoStart = gtk_button_new_with_label("Iniciar");
     g_signal_connect(botaoStart, "clicked", G_CALLBACK(on_iniciar_parar), NULL);
-
     GtkWidget* botaoReset = gtk_button_new_with_label("Resetar");
     g_signal_connect(botaoReset, "clicked", G_CALLBACK(on_reset), NULL);
-
     gtk_box_pack_start(GTK_BOX(hboxButtons), botaoStart, TRUE, TRUE, 5);
     gtk_box_pack_start(GTK_BOX(hboxButtons), botaoReset, TRUE, TRUE, 5);
 
-    // label do contador
+    // Labels
     labelContador = gtk_label_new("Contador: 0");
+    labelStatus = gtk_label_new("Incremento: 1 | Frequência: 1000 ms");
 
-    // monta a interface
+    // Montagem da interface
     gtk_box_pack_start(GTK_BOX(vbox), hboxInputs, FALSE, FALSE, 5);
     gtk_box_pack_start(GTK_BOX(vbox), hboxButtons, FALSE, FALSE, 5);
     gtk_box_pack_start(GTK_BOX(vbox), labelContador, FALSE, FALSE, 5);
+    gtk_box_pack_start(GTK_BOX(vbox), labelStatus, FALSE, FALSE, 5);
 
     gtk_container_add(GTK_CONTAINER(janela), vbox);
 
@@ -157,8 +173,7 @@ int main(int argc, char* argv[]) {
 
     gtk_widget_show_all(janela);
 
-    // cria controle e passa o label
-    globalControl = new ContadorControl(labelContador);
+    globalControl = new ContadorControl(labelContador, labelStatus);
 
     gtk_main();
 
