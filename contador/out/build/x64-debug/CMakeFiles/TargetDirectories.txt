@@ -1,0 +1,5 @@
+C:/Users/User/Documents/GitHub/contador/contador/out/build/x64-debug/CMakeFiles/edit_cache.dir
+C:/Users/User/Documents/GitHub/contador/contador/out/build/x64-debug/CMakeFiles/rebuild_cache.dir
+C:/Users/User/Documents/GitHub/contador/contador/out/build/x64-debug/contador/CMakeFiles/contador.dir
+C:/Users/User/Documents/GitHub/contador/contador/out/build/x64-debug/contador/CMakeFiles/edit_cache.dir
+C:/Users/User/Documents/GitHub/contador/contador/out/build/x64-debug/contador/CMakeFiles/rebuild_cache.dir
